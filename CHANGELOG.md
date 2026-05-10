@@ -1,3 +1,66 @@
+# v0.4.28 (2026-05-10)
+
+## Features
+- Add bun:sqlite adapter with automatic runtime detection (Bun/Node)
+- Add bulk API key import (format: `name|sk-key`, one per line)
+
+## Fixes
+- Fix add API key for custom providers
+
+# v0.4.27 (2026-05-09)
+
+## Features
+- Add 3-tier DB driver fallback: better-sqlite3 → node:sqlite (Node ≥22.5) → sql.js
+
+## Fixes
+- Fix authentication logic for several providers
+
+# v0.4.25 (2026-05-09)
+
+## Features
+- Add MCP Marketplace Modal to Cowork Tool Card for easier plugin management
+- Migrate DB layer from lowdb to SQLite with modular repos pattern (better-sqlite3 / sql.js adapters, migrations, helpers)
+- Add Tailscale tunnel integration with status check API
+- Add `/api/cli-tools/all-statuses` aggregated endpoint
+- Add Cloudflare Workers AI image generation support (#973)
+- Add DeepSeek V4 Pro model and update V4 pricing (#938)
+- Add captain-definition for Caprover deployment (#954)
+
+## Improvements
+- Optimize slow page load performance
+- Refactor connection proxy configuration logic (#970)
+
+## Fixes
+- Prevent cached settings responses (#951)
+- Normalize Ollama Local provider input (#955)
+
+## Docs
+- Add Chinese translation of README (#957)
+- Fix localized README links (#956)
+
+# v0.4.20 (2026-05-07)
+
+## Features
+- Add CommandCode provider support
+
+# v0.4.19 (2026-05-07)
+
+## Features
+- Add OllamaLocalExecutor cho local Ollama provider
+- Add audio input support cho Gemini translation
+- Add configurable tunnel transport protocols
+- Add model deselection trong ComboFormModal & ComboDetailPage
+- ComboFormModal/BaseUrlSelect: cloud endpoint option, custom URL local state, default first option
+- New API: `/v1/audio/voices`, `/v1/models/info`; `/v1/models` filter disabled models
+- CLI tool cards refactor dùng BaseUrlSelect
+
+## Fixes
+- Fix compatible provider API key setup
+- Fix usage: filter `totalRequests` theo time period đã chọn
+- Fix Kiro IDE MITM handler bugs (AWS CodeWhisperer translation)
+- geminiHelper: `ensureObjectType` cho schemas có properties nhưng thiếu type
+- initializeApp: guard tunnel/tailscale auto-resume once-per-process
+
 # v0.4.18 (2026-05-05)
 
 ## Features
