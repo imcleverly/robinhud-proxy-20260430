@@ -69,6 +69,9 @@ export function convertSessionToProviderConnection(record, forcedProvider, force
   const expiresAt = firstNonEmpty(timestampFromUnixSeconds(payload?.exp), normalizeTimestamp(record.expires), normalizeTimestamp(record.expiresAt), normalizeTimestamp(record.expires_at));
   const now = new Date();
 
+  const parsedPriority = Number(record.priority);
+  const hasPriority = Number.isFinite(parsedPriority);
+
   return {
     provider: forcedProvider || record.provider || "codex",
     authType: forcedAuthType || record.authType || "oauth",
@@ -79,7 +82,7 @@ export function convertSessionToProviderConnection(record, forcedProvider, force
     expiresAt,
     expiresIn: getExpiresIn(expiresAt, now),
     testStatus: firstNonEmpty(record.testStatus, record.test_status, "active"),
-    priority: Number.isFinite(Number(record.priority)) ? Number(record.priority) : 9,
+    ...(hasPriority ? { priority: parsedPriority } : {}),
     isActive: typeof record.isActive === "boolean" ? record.isActive : !Boolean(record.disabled),
     createdAt: normalizeTimestamp(record.createdAt) || now.toISOString(),
     updatedAt: normalizeTimestamp(record.updatedAt) || now.toISOString(),
