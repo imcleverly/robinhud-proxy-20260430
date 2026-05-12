@@ -103,6 +103,7 @@ export default function ProvidersPage() {
     useState(false);
   const [testingMode, setTestingMode] = useState(null);
   const [testResults, setTestResults] = useState(null);
+  const [importTarget, setImportTarget] = useState(null);
   const notify = useNotificationStore();
   const searchQuery = useHeaderSearchStore((s) => s.query);
   const registerSearch = useHeaderSearchStore((s) => s.register);
@@ -337,6 +338,9 @@ export default function ProvidersPage() {
                   onToggle={(active) =>
                     handleToggleProvider(info.id, "apikey", active)
                   }
+                  onImportJson={() =>
+                    setImportTarget({ providerId: info.id, providerName: info.name, authType: "apikey" })
+                  }
                 />
               ),
             )}
@@ -382,6 +386,9 @@ export default function ProvidersPage() {
               stats={getProviderStats(key, "oauth")}
               authType="oauth"
               onToggle={(active) => handleToggleProvider(key, "oauth", active)}
+              onImportJson={() =>
+                setImportTarget({ providerId: key, providerName: info.name, authType: "oauth" })
+              }
             />
           ))}
         </div>
@@ -423,6 +430,9 @@ export default function ProvidersPage() {
               stats={getProviderStats(key, "oauth")}
               authType="free"
               onToggle={(active) => handleToggleProvider(key, "oauth", active)}
+              onImportJson={() =>
+                setImportTarget({ providerId: key, providerName: info.name, authType: "oauth" })
+              }
             />
           ))}
           {freeTierEntries.map(([key, info]) => (
@@ -433,6 +443,9 @@ export default function ProvidersPage() {
               stats={getProviderStats(key, "apikey")}
               authType="apikey"
               onToggle={(active) => handleToggleProvider(key, "apikey", active)}
+              onImportJson={() =>
+                setImportTarget({ providerId: key, providerName: info.name, authType: "apikey" })
+              }
             />
           ))}
         </div>
@@ -474,6 +487,9 @@ export default function ProvidersPage() {
               stats={getProviderStats(key, "apikey")}
               authType="apikey"
               onToggle={(active) => handleToggleProvider(key, "apikey", active)}
+              onImportJson={() =>
+                setImportTarget({ providerId: key, providerName: info.name, authType: "apikey" })
+              }
             />
           ))}
         </div>
@@ -517,6 +533,18 @@ export default function ProvidersPage() {
           setShowAddAnthropicCompatibleModal(false);
         }}
       />
+      <ImportProviderJsonModal
+        isOpen={!!importTarget}
+        providerId={importTarget?.providerId || ""}
+        providerName={importTarget?.providerName || ""}
+        authType={importTarget?.authType || "oauth"}
+        onClose={() => setImportTarget(null)}
+        onImported={(connection) => {
+          setConnections((prev) => [connection, ...prev]);
+          setImportTarget(null);
+          notify.success("Import JSON thành công");
+        }}
+      />
 
       {/* Test Results Modal */}
       {testResults && (
@@ -549,7 +577,7 @@ export default function ProvidersPage() {
   );
 }
 
-function ProviderCard({ providerId, provider, stats, authType, onToggle }) {
+function ProviderCard({ providerId, provider, stats, authType, onToggle, onImportJson }) {
   const { connected, error, errorCode, errorTime, allDisabled } = stats;
   const isNoAuth = !!provider.noAuth;
 
@@ -617,6 +645,17 @@ function ProviderCard({ providerId, provider, stats, authType, onToggle }) {
             </div>
           </div>
           <div className="flex shrink-0 items-center gap-2">
+            <button
+              type="button"
+              className="rounded-md border border-border px-2 py-1 text-[11px] text-text-muted hover:text-text-main"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                onImportJson?.();
+              }}
+            >
+              Import JSON
+            </button>
             {stats.total > 0 && (
               <div
                 className="opacity-100 transition-opacity sm:opacity-0 sm:group-hover:opacity-100"
@@ -657,6 +696,7 @@ ProviderCard.propTypes = {
   }).isRequired,
   authType: PropTypes.string,
   onToggle: PropTypes.func,
+  onImportJson: PropTypes.func,
 };
 
 function ApiKeyProviderCard({
@@ -665,6 +705,7 @@ function ApiKeyProviderCard({
   stats,
   authType,
   onToggle,
+  onImportJson,
 }) {
   const { connected, error, errorCode, errorTime, allDisabled } = stats;
   const isCompatible = providerId.startsWith(OPENAI_COMPATIBLE_PREFIX);
@@ -755,6 +796,17 @@ function ApiKeyProviderCard({
             </div>
           </div>
           <div className="flex shrink-0 items-center gap-2">
+            <button
+              type="button"
+              className="rounded-md border border-border px-2 py-1 text-[11px] text-text-muted hover:text-text-main"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                onImportJson?.();
+              }}
+            >
+              Import JSON
+            </button>
             {stats.total > 0 && (
               <div
                 className="opacity-100 transition-opacity sm:opacity-0 sm:group-hover:opacity-100"
@@ -796,7 +848,76 @@ ApiKeyProviderCard.propTypes = {
   }).isRequired,
   authType: PropTypes.string,
   onToggle: PropTypes.func,
+  onImportJson: PropTypes.func,
 };
+
+function ImportProviderJsonModal({ isOpen, providerId, providerName, authType, onClose, onImported }) {
+  const [jsonText, setJsonText] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState("");
+
+  const handleSubmit = async () => {
+    setError("");
+    let parsed;
+    try {
+      parsed = JSON.parse(jsonText);
+    } catch {
+      setError("JSON không hợp lệ");
+      return;
+    }
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+      setError("Chỉ hỗ trợ 1 JSON object");
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      const response = await fetch("/api/providers/import-json", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          connection: {
+            ...parsed,
+            provider: providerId,
+            authType,
+          },
+        }),
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        setError(data?.error || "Import thất bại");
+        return;
+      }
+
+      setJsonText("");
+      onImported?.(data.connection);
+    } catch {
+      setError("Import thất bại");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <Modal isOpen={isOpen} title={`Import JSON - ${providerName || providerId}`} onClose={onClose}>
+      <div className="space-y-3">
+        <p className="text-sm text-text-muted">Paste 1 JSON object connection để thêm vào providerConnections.</p>
+        <textarea
+          value={jsonText}
+          onChange={(e) => setJsonText(e.target.value)}
+          placeholder='{"name":"Account A","email":"a@b.com","accessToken":"..."}'
+          className="min-h-[180px] w-full rounded-lg border border-border bg-bg px-3 py-2 text-sm"
+        />
+        {error ? <div className="text-sm text-red-500">{error}</div> : null}
+        <div className="flex gap-2">
+          <Button variant="ghost" fullWidth onClick={onClose}>Hủy</Button>
+          <Button fullWidth onClick={handleSubmit} loading={submitting}>Import</Button>
+        </div>
+      </div>
+    </Modal>
+  );
+}
 
 function AddOpenAICompatibleModal({ isOpen, onClose, onCreated }) {
   const [formData, setFormData] = useState({

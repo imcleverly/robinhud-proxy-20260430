@@ -28,6 +28,10 @@ export default function ProviderDetailPage() {
   const [showOAuthModal, setShowOAuthModal] = useState(false);
   const [showIFlowCookieModal, setShowIFlowCookieModal] = useState(false);
   const [showAddApiKeyModal, setShowAddApiKeyModal] = useState(false);
+  const [showImportJsonModal, setShowImportJsonModal] = useState(false);
+  const [importJsonText, setImportJsonText] = useState("");
+  const [importJsonError, setImportJsonError] = useState("");
+  const [importingJson, setImportingJson] = useState(false);
   const [addConnectionError, setAddConnectionError] = useState("");
   const [showEditModal, setShowEditModal] = useState(false);
   const [showEditNodeModal, setShowEditNodeModal] = useState(false);
@@ -416,6 +420,49 @@ export default function ProviderDetailPage() {
       }
     } catch (error) {
       console.log("Error updating connection status:", error);
+    }
+  };
+
+  const handleImportJson = async () => {
+    setImportJsonError("");
+    let parsed;
+    try {
+      parsed = JSON.parse(importJsonText);
+    } catch {
+      setImportJsonError("JSON không hợp lệ");
+      return;
+    }
+
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+      setImportJsonError("Chỉ hỗ trợ 1 JSON object");
+      return;
+    }
+
+    setImportingJson(true);
+    try {
+      const res = await fetch("/api/providers/import-json", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          connection: {
+            ...parsed,
+            provider: providerId,
+            authType: isOAuth ? "oauth" : "apikey",
+          },
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setImportJsonError(data?.error || "Import thất bại");
+        return;
+      }
+      await fetchConnections();
+      setImportJsonText("");
+      setShowImportJsonModal(false);
+    } catch {
+      setImportJsonError("Import thất bại");
+    } finally {
+      setImportingJson(false);
     }
   };
 
@@ -1058,6 +1105,17 @@ export default function ProviderDetailPage() {
                 >
                   {isCompatible ? "Add API Key" : (providerId === "iflow" ? "OAuth" : "Add Connection")}
                 </Button>
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  icon="upload"
+                  onClick={() => {
+                    setImportJsonError("");
+                    setShowImportJsonModal(true);
+                  }}
+                >
+                  Import JSON
+                </Button>
               </div>
             </div>
           ) : (
@@ -1091,6 +1149,18 @@ export default function ProviderDetailPage() {
                     className="w-full sm:w-auto"
                   >
                     Add
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    icon="upload"
+                    onClick={() => {
+                      setImportJsonError("");
+                      setShowImportJsonModal(true);
+                    }}
+                    className="w-full sm:w-auto"
+                  >
+                    Import JSON
                   </Button>
                 </div>
               )}
@@ -1134,6 +1204,31 @@ export default function ProviderDetailPage() {
       </Card>
 
       {bulkActionModal}
+
+      <Modal
+        isOpen={showImportJsonModal}
+        onClose={() => setShowImportJsonModal(false)}
+        title={`Import JSON - ${providerInfo?.name || providerId}`}
+      >
+        <div className="space-y-3">
+          <p className="text-sm text-text-muted">Paste 1 JSON object connection để thêm vào providerConnections.</p>
+          <textarea
+            value={importJsonText}
+            onChange={(e) => setImportJsonText(e.target.value)}
+            placeholder='{"name":"Account A","email":"a@b.com","accessToken":"..."}'
+            className="min-h-[180px] w-full rounded-lg border border-border bg-bg px-3 py-2 text-sm"
+          />
+          {!!importJsonError && <p className="text-sm text-red-500">{importJsonError}</p>}
+          <div className="flex gap-2">
+            <Button variant="ghost" fullWidth onClick={() => setShowImportJsonModal(false)}>
+              Hủy
+            </Button>
+            <Button fullWidth loading={importingJson} onClick={handleImportJson}>
+              Import
+            </Button>
+          </div>
+        </div>
+      </Modal>
 
       {/* Modals */}
       {providerId === "kiro" ? (
