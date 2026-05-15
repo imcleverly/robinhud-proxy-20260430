@@ -157,6 +157,11 @@ export class DefaultExecutor extends BaseExecutor {
     }
 
     if (stream) headers["Accept"] = "text/event-stream";
+    const customHeaders = credentials?.providerSpecificData?.customHeaders;
+    if (customHeaders && typeof customHeaders === "object" && Object.keys(customHeaders).length > 0) {
+      Object.assign(headers, customHeaders);
+    }
+
     return headers;
   }
 

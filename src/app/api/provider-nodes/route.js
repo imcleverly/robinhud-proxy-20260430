@@ -3,6 +3,25 @@ import { createProviderNode, getProviderNodes } from "@/models";
 import { OPENAI_COMPATIBLE_PREFIX, ANTHROPIC_COMPATIBLE_PREFIX, CUSTOM_EMBEDDING_PREFIX } from "@/shared/constants/providers";
 import { generateId } from "@/shared/utils";
 
+/**
+ * Sanitize and validate custom headers object.
+ * Returns a clean object with string keys/values, or empty object.
+ */
+function sanitizeCustomHeaders(headers) {
+  if (!headers || typeof headers !== "object" || Array.isArray(headers)) return {};
+  const result = {};
+  const entries = Object.entries(headers).slice(0, 20); // max 20 headers
+  for (const [key, value] of entries) {
+    if (typeof key !== "string" || !key.trim()) continue;
+    const k = key.trim().slice(0, 100);
+    const v = String(value ?? "").trim().slice(0, 2000);
+    // Reject keys/values with CR/LF (header injection prevention)
+    if (/[\r\n]/.test(k) || /[\r\n]/.test(v)) continue;
+    result[k] = v;
+  }
+  return result;
+}
+
 export const dynamic = "force-dynamic";
 
 const OPENAI_COMPATIBLE_DEFAULTS = {
@@ -32,7 +51,7 @@ export async function GET() {
 export async function POST(request) {
   try {
     const body = await request.json();
-    const { name, prefix, apiType, baseUrl, type } = body;
+    const { name, prefix, apiType, baseUrl, type, customHeaders } = body;
 
     if (!name?.trim()) {
       return NextResponse.json({ error: "Name is required" }, { status: 400 });
@@ -50,6 +69,7 @@ export async function POST(request) {
         return NextResponse.json({ error: "Invalid OpenAI compatible API type" }, { status: 400 });
       }
 
+      const sanitizedHeaders = sanitizeCustomHeaders(customHeaders);
       const node = await createProviderNode({
         id: `${OPENAI_COMPATIBLE_PREFIX}${apiType}-${generateId()}`,
         type: "openai-compatible",
@@ -57,6 +77,7 @@ export async function POST(request) {
         apiType,
         baseUrl: (baseUrl || OPENAI_COMPATIBLE_DEFAULTS.baseUrl).trim(),
         name: name.trim(),
+        ...(Object.keys(sanitizedHeaders).length > 0 && { customHeaders: sanitizedHeaders }),
       });
       return NextResponse.json({ node }, { status: 201 });
     }
@@ -68,12 +89,14 @@ export async function POST(request) {
         sanitizedBaseUrl = sanitizedBaseUrl.slice(0, -"/embeddings".length);
       }
 
+      const sanitizedHeaders = sanitizeCustomHeaders(customHeaders);
       const node = await createProviderNode({
         id: `${CUSTOM_EMBEDDING_PREFIX}${generateId()}`,
         type: "custom-embedding",
         prefix: prefix.trim(),
         baseUrl: sanitizedBaseUrl,
         name: name.trim(),
+        ...(Object.keys(sanitizedHeaders).length > 0 && { customHeaders: sanitizedHeaders }),
       });
       return NextResponse.json({ node }, { status: 201 });
     }
@@ -86,12 +109,14 @@ export async function POST(request) {
         sanitizedBaseUrl = sanitizedBaseUrl.slice(0, -9); // remove /messages
       }
 
+      const sanitizedHeaders = sanitizeCustomHeaders(customHeaders);
       const node = await createProviderNode({
         id: `${ANTHROPIC_COMPATIBLE_PREFIX}${generateId()}`,
         type: "anthropic-compatible",
         prefix: prefix.trim(),
         baseUrl: sanitizedBaseUrl,
         name: name.trim(),
+        ...(Object.keys(sanitizedHeaders).length > 0 && { customHeaders: sanitizedHeaders }),
       });
       return NextResponse.json({ node }, { status: 201 });
     }

@@ -10,6 +10,7 @@ export default function EditCompatibleNodeModal({ isOpen, node, onSave, onClose,
     prefix: "",
     apiType: "chat",
     baseUrl: "https://api.openai.com/v1",
+    customHeaders: [],
   });
   const [saving, setSaving] = useState(false);
   const [checkKey, setCheckKey] = useState("");
@@ -19,11 +20,15 @@ export default function EditCompatibleNodeModal({ isOpen, node, onSave, onClose,
 
   useEffect(() => {
     if (node) {
+      const nodeCustomHeaders = node.customHeaders && typeof node.customHeaders === "object"
+        ? Object.entries(node.customHeaders).map(([key, value]) => ({ key, value: String(value ?? "") }))
+        : [];
       setFormData({
         name: node.name || "",
         prefix: node.prefix || "",
         apiType: node.apiType || "chat",
         baseUrl: node.baseUrl || (isAnthropic ? "https://api.anthropic.com/v1" : "https://api.openai.com/v1"),
+        customHeaders: nodeCustomHeaders,
       });
     }
   }, [node, isAnthropic]);
@@ -37,10 +42,17 @@ export default function EditCompatibleNodeModal({ isOpen, node, onSave, onClose,
     if (!formData.name.trim() || !formData.prefix.trim() || !formData.baseUrl.trim()) return;
     setSaving(true);
     try {
+      const customHeadersObject = formData.customHeaders.length > 0
+        ? formData.customHeaders.reduce((acc, h) => {
+            if (h.key.trim()) acc[h.key.trim()] = h.value;
+            return acc;
+          }, {})
+        : undefined;
       const payload = {
         name: formData.name,
         prefix: formData.prefix,
         baseUrl: formData.baseUrl,
+        customHeaders: customHeadersObject,
       };
       if (!isAnthropic) {
         payload.apiType = formData.apiType;
@@ -106,7 +118,71 @@ export default function EditCompatibleNodeModal({ isOpen, node, onSave, onClose,
           onChange={(e) => setFormData({ ...formData, baseUrl: e.target.value })}
           placeholder={isAnthropic ? "https://api.anthropic.com/v1" : "https://api.openai.com/v1"}
           hint={`Use the base URL (ending in /v1) for your ${isAnthropic ? "Anthropic" : "OpenAI"}-compatible API.`}
+          className="mb-2"
         />
+        {/* Custom Headers Section */}
+        <div className="border border-border-subtle rounded-md p-3">
+          <div className="flex items-center justify-between mb-3">
+            <label className="text-sm font-medium">Custom Headers (optional)</label>
+            {formData.customHeaders.length === 0 && (
+              <button
+                type="button"
+                onClick={() => setFormData({ ...formData, customHeaders: [{ key: "", value: "" }] })}
+                className="text-xs text-accent-primary hover:text-accent-primary/80"
+              >
+                + Add Header
+              </button>
+            )}
+          </div>
+          {formData.customHeaders.length > 0 && (
+            <div className="flex flex-col gap-2">
+              {formData.customHeaders.map((header, index) => (
+                <div key={index} className="flex gap-2 items-start">
+                  <Input
+                    placeholder="Header-Key"
+                    value={header.key}
+                    onChange={(e) => {
+                      const updated = [...formData.customHeaders];
+                      updated[index].key = e.target.value;
+                      setFormData({ ...formData, customHeaders: updated });
+                    }}
+                    className="flex-1"
+                  />
+                  <Input
+                    placeholder="Value"
+                    value={header.value}
+                    onChange={(e) => {
+                      const updated = [...formData.customHeaders];
+                      updated[index].value = e.target.value;
+                      setFormData({ ...formData, customHeaders: updated });
+                    }}
+                    className="flex-1"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const updated = formData.customHeaders.filter((_, i) => i !== index);
+                      setFormData({ ...formData, customHeaders: updated });
+                    }}
+                    className="mt-1.5 text-text-muted hover:text-red-500"
+                  >
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <line x1="18" y1="6" x2="6" y2="18"></line>
+                      <line x1="6" y1="6" x2="18" y2="18"></line>
+                    </svg>
+                  </button>
+                </div>
+              ))}
+              <button
+                type="button"
+                onClick={() => setFormData({ ...formData, customHeaders: [...formData.customHeaders, { key: "", value: "" }] })}
+                className="self-start text-xs text-accent-primary hover:text-accent-primary/80 mt-1"
+              >
+                + Add Header
+              </button>
+            </div>
+          )}
+        </div>
         <div className="flex gap-2">
           <Input
             label="API Key (for Check)"
@@ -154,6 +230,7 @@ EditCompatibleNodeModal.propTypes = {
     prefix: PropTypes.string,
     apiType: PropTypes.string,
     baseUrl: PropTypes.string,
+    customHeaders: PropTypes.object,
   }),
   onSave: PropTypes.func.isRequired,
   onClose: PropTypes.func.isRequired,

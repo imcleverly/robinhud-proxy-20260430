@@ -68,6 +68,11 @@ export class BaseExecutor {
       headers["Accept"] = "text/event-stream";
     }
 
+    const customHeaders = credentials?.providerSpecificData?.customHeaders;
+    if (customHeaders && typeof customHeaders === "object" && Object.keys(customHeaders).length > 0) {
+      Object.assign(headers, customHeaders);
+    }
+
     return headers;
   }
 
@@ -118,6 +123,8 @@ export class BaseExecutor {
       const url = this.buildUrl(model, stream, urlIndex, credentials);
       const transformedBody = this.transformRequest(model, body, stream, credentials);
       const headers = this.buildHeaders(credentials, stream);
+      const sanitizedUrl = url.split("?")[0];
+      log?.info?.("API_CALL", `${this.provider} → ${sanitizedUrl} | headers: [${Object.keys(headers).join(", ")}]`);
 
       if (!retryAttemptsByUrl[urlIndex]) retryAttemptsByUrl[urlIndex] = 0;
 

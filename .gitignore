@@ -70,3 +70,9 @@ ecosystem.config.*
 
 scripts/agSniffer/*
 gitbooks/*
+
+# hyper
+.hyper/*
+!.hyper/*/
+.hyper/*/*/**
+!.hyper/*/*/plan.md

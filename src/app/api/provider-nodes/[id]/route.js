@@ -1,12 +1,31 @@
 import { NextResponse } from "next/server";
 import { deleteProviderConnectionsByProvider, deleteProviderNode, getProviderConnections, getProviderNodeById, updateProviderConnection, updateProviderNode } from "@/models";
 
+/**
+ * Sanitize and validate custom headers object.
+ * Returns a clean object with string keys/values, or empty object.
+ */
+function sanitizeCustomHeaders(headers) {
+  if (!headers || typeof headers !== "object" || Array.isArray(headers)) return {};
+  const result = {};
+  const entries = Object.entries(headers).slice(0, 20); // max 20 headers
+  for (const [key, value] of entries) {
+    if (typeof key !== "string" || !key.trim()) continue;
+    const k = key.trim().slice(0, 100);
+    const v = String(value ?? "").trim().slice(0, 2000);
+    // Reject keys/values with CR/LF (header injection prevention)
+    if (/[\r\n]/.test(k) || /[\r\n]/.test(v)) continue;
+    result[k] = v;
+  }
+  return result;
+}
+
 // PUT /api/provider-nodes/[id] - Update provider node
 export async function PUT(request, { params }) {
   try {
     const { id } = await params;
     const body = await request.json();
-    const { name, prefix, apiType, baseUrl } = body;
+    const { name, prefix, apiType, baseUrl, customHeaders } = body;
     const node = await getProviderNodeById(id);
 
     if (!node) {
@@ -58,6 +77,10 @@ export async function PUT(request, { params }) {
       updates.apiType = apiType;
     }
 
+    // Sanitize and apply custom headers
+    const sanitizedHeaders = sanitizeCustomHeaders(customHeaders);
+    updates.customHeaders = Object.keys(sanitizedHeaders).length > 0 ? sanitizedHeaders : undefined;
+
     const updated = await updateProviderNode(id, updates);
 
     const connections = await getProviderConnections({ provider: id });
@@ -69,6 +92,7 @@ export async function PUT(request, { params }) {
           apiType: node.type === "openai-compatible" ? apiType : undefined,
           baseUrl: sanitizedBaseUrl,
           nodeName: updated.name,
+          customHeaders: updates.customHeaders,
         }
       })
     )));
